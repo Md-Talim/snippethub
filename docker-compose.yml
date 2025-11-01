@@ -3,7 +3,7 @@ services:
     mysql:
         image: mysql:8.0
         container_name: snippethub_mysql
-        restart: always
+        restart: no
         environment:
             MYSQL_ROOT_PASSWORD: rootpassword
             MYSQL_DATABASE: snippethub
