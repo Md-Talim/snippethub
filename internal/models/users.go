@@ -10,6 +10,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const ER_DUP_ENTRY = 1062
+
 type User struct {
 	ID             int
 	Name           string
@@ -41,7 +43,7 @@ func (m *UserModel) Insert(name, email, password string) error {
 	if err != nil {
 		var mySQLError *mysql.MySQLError
 		if errors.As(err, &mySQLError) {
-			if mySQLError.Number == 1067 && strings.Contains(mySQLError.Message, "users_uc_email") {
+			if mySQLError.Number == ER_DUP_ENTRY && strings.Contains(mySQLError.Message, "users_uc_email") {
 				return ErrDuplicateEmail
 			}
 		}
@@ -53,7 +55,29 @@ func (m *UserModel) Insert(name, email, password string) error {
 }
 
 func (m *UserModel) Authenticate(email, password string) (int, error) {
-	return 0, nil
+	var id int
+	var hashedPassword []byte
+
+	stmt := "SELECT id, hashed_password FROM users WHERE email = ?"
+
+	err := m.DB.QueryRow(stmt, email).Scan(&id, &hashedPassword)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, ErrInvalidCredentials
+		}
+		return 0, err
+	}
+
+	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return 0, ErrInvalidCredentials
+		}
+		return 0, err
+	}
+
+
+	return id, nil
 }
 
 func (m *UserModel) Exists(id int) (bool, error) {
